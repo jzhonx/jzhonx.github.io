@@ -6,27 +6,27 @@ categories: Haskell
 mermaid: true
 ---
 
-When working with tree data structures, we often need to navigate to a specific node and modify it. It is
-straightforward in imperative languages, but it can be tricky in functional languages due to immutability. This post
-will explain how to navigate and modify tree data structures in functional languages using a technique called
-**Zippers**.
+When working with tree-structured data, we often need to navigate to a specific node and modify it. In imperative languages, this is usually straightforward thanks to mutable state and parent pointers. In functional languages, however, immutability makes this pattern less obvious.
+
+In this post, we’ll explore how to navigate and modify tree structures efficiently in functional languages using a technique called **zippers**.
 
 ## Simple JSON query language
 
-Suppose we are implementing a simple JSON query tool which has similar syntax to `jq`. The query language allows us to
-access and modify values in a JSON object.
+Suppose we are implementing a simple JSON query tool with syntax similar to `jq`. The language allows us to access and modify values in a JSON object.
 
-The syntax of the query language is as follows:
+The core syntax:
 
-- `.field` to access a field of an object and focus on the field value
-- `=` to modify the current value to a new value
-- `|` to chain operations together
-- `with_cursor(filter, query)` to execute a query with the current focus node as the root node 
+* `.field` — access a field
+* `=` — replace the current value
+* `|` — chain operations
+* `with_cursor($=filter, $cursor_movement)` — create a cursor at the node specified by `filter` and execute `query` with the
+  cursor as the root node. The `cursor_movement` is:
+  * `.field` — access a field relative to the current cursor node.
+  * `.^` — access the parent node of the current cursor node.
 
-It is quite straightforward to implement the query language in an imperative language. If we parse the JSON object into
-a tree data structure which has a pointer to the parent node, we can easily navigate to the target node and move up to
-the parent node. However, in a functional language like Haskell, we cannot have pointers to the parent node because of
-immutability. We need a different approach to navigate and modify the tree data structure.
+In an imperative setting, we might represent the JSON as a tree with parent pointers, making navigation (both downward and upward) trivial.
+
+In a functional language like Haskell, we generally avoid parent pointers because maintaining them correctly under immutability is difficult. Instead, we need a different approach.
 
 ### Example
 
@@ -48,64 +48,63 @@ We have the following two queries that do the same thing but with different synt
 ```
 .a.b.x = 42 | .a.b.y = 43
 
-with_cursor(.a.b, .x = 42 | .y = 43)
+with_cursor($=.a.b, $.x = 42 | $.y = 43)
 ```
 
-We will use the example to explain how to implement the query language in Haskell, and how to use Zippers to navigate
+We will use the example to explain how to implement the query language in Haskell, and how to use zippers to navigate
 and modify the tree data structure efficiently.
 
-## Navigating and Modifying Trees in Functional Languages
+## Navigating and Modifying Trees
 
 ### Persistent data structure
 
-In Haskell, data structures are typically immutable. To modify a node in a tree, we need to create a new tree with the
-modified node. The unchanged parts of the original tree can be shared between the original and the new tree, which is
-called a **persistent data structure**.
+In Haskell, data structures are typically immutable. To modify a node in a tree, we need to create a new tree that
+contains the modified node, while sharing the unchanged nodes with the original tree. This is known as a **persistent
+data structure**.
 
-Let's define a simple tree data structure to represent the only subset of JSON that we need for our query language:
+We define a minimal tree type:
 
 ```haskell
 data Tree
-  = Leaf Int
-  | Tree [(String, Tree)]
+  = Atom Int
+  | Object [(String, Tree)]
 ```
 
-After parsing the DSL code, we create a tree like the following:
+Example value:
 
 ```haskell
 root :: Tree
-root = Tree [("a", Tree [("b", Tree [("x", Atom 1), ("y", Atom 2)])])]
+root = Object [("a", Object [("b", Object [("x", Atom 1), ("y", Atom 2)])])]
 ```
 
-### First query implementation
+### First Approach: Root-based
+
 
 The first query `.a.b.x = 42 | .a.b.y = 43` can be implemented by accessing the target node and modifying it, then
 accessing another target node through the modified root node and modifying it again.
 
 To access a node, we recursively follow the path from the root to the target node and recursively create new nodes along
-the way. The unchanged nodes are shared between the original tree and the new tree. The time complexity of the
-`access` function is `O(depth(node))`, where `depth(node)` is the depth of the target node in the tree.
+the way. The unchanged nodes are shared between the original tree and the new tree. The number of nodes that are
+modified by the `access` function is `O(depth(node))`, where `depth(node)` is the depth of the target node in the tree.
 
 ```haskell
 access :: [String] -> (Tree -> Tree) -> Tree -> Tree
 access [] f t = f t
-access (k : ks) f (Tree ts)
+access (k : ks) f (Object ts)
   | let (before, rest) = break ((== k) . fst) ts
   , ((_, v) : after) <- rest =
       let modifiedChild = access ks f v
-       in Tree (before ++ (k, modifiedChild) : after)
+       in Object (before ++ (k, modifiedChild) : after)
 access _ _ _ = error "Invalid path to access"
 ```
 
-In the `access` function, we first check if the path is empty. If it is, we apply the modification function `f` to the
-current node. If the path is not empty, we look for the child node with the key `k`. If we find it, we recursively call
-`access` on the child node with the remaining path `ks`. After we get the modified child node, we create a new tree node
-with the modified child node and the unchanged siblings, and return the new tree.
-
+When the path is empty, we apply the modification function f to the current node. Otherwise, we find the child with
+key k, recurse into it with the remaining path, and rebuild the current node with the modified child. The cost is
+O(depth(node)) new nodes per modification.
 
 #### Example of `access`
 
-Suppose we modify the "x" node to 1 with `access ["a", "b", "x"] (const $ Atom 42) root`, the new tree and the original
+Suppose we modify the "x" node to 42 with `access ["a", "b", "x"] (const $ Atom 42) root`, the new tree and the original
 tree would look like the following:
 
 ```mermaid
@@ -120,25 +119,25 @@ flowchart TD
 	subgraph new tree
 		root2("root'") -->|a| a2
 		a2("tree_a'") -->|b| b2
-    b2("tree_b'") -->|x| x2("2")
+    b2("tree_b'") -->|x| x2("42")
     b2 -->|y| y
 	end
 ```
 
-In the diagram, the `tree_a` stands for a `Tree` node that is a child of the root node with key "b". The `tree_a'` is a
+In the diagram, the `tree_a` stands for a `Tree` node that is a child of the root node with key "a". The `tree_a'` is a
 modified version of `tree_a` with the modified child node "x". The `root'` is a modified version of the original root
 node with modified nodes. So is `tree_b'`.
 
-From the diagram, we can see that the modified node "x" is a new node with value 1, and its parent node "b" is also a
-new node that shares the unchanged child node "a" with the original tree.
+From the diagram, we can see that the modified node "x" is a new node with value 42, and its parent node "b" is also a
+new node that shares the unchanged child node "y" with the original tree.
 
 #### Query execution
 
 The whole query can be translated to the following Haskell code:
 
 ```haskell
-( access ["a", "b", "x"] (const $ Atom 2)
-    . access ["a", "b", "y"] (const $ Atom 3)
+( access ["a", "b", "x"] (const $ Atom 42)
+. access ["a", "b", "y"] (const $ Atom 43)
 )
   root
 ```
@@ -148,25 +147,21 @@ tree and returns a new tree, and so on. The `|` operator is translated to functi
 The two `access` functions are composed together, and the resulting function is applied to the original tree `root` to
 get the modified tree.
 
-If there are `N` modifications in the query, the time complexity of the whole query is `O(N * depth(tree))`.
-
-#### Parent pointer
-
-It might be tempting to add a parent pointer to the tree data structure to make it easier to navigate upwards like in an
-imperative language. However, in functional languages, this is almost impossible because of immutability. In Haskell, it
-can be done by using the lazy evaluation feature, but it is too complicated and not recommended. See [Tying the knot](https://wiki.haskell.org/Tying_the_knot) for more details.
+If there are `N` modifications in the query, the total number of nodes that are modified is `O(N * depth(tree))`. For
+modifications that are close to each other, this can lead to a lot of redundant modifications. In our example, the "a"
+and "b" nodes are modified twice, which is inefficient.
 
 ### Second query implementation
 
-The query `with_cursor(.a.b, .x = 42 | .y = 43)` introduces a cursor that allows us to focus on a specific node in
+The query `with_cursor($=.a.b, $.x = 42 | $.y = 43)` introduces a cursor that allows us to focus on a specific node in
 the tree and execute a query with the focused node as the root node. The `with_cursor` query can be implemented by using
 a technique called **Zippers**.
 
 #### Zippers
 
 Zippers are a powerful technique for navigating and modifying persistent data structures like trees. They allow us to go
-to parent node or to a specific child node in `O(1)` time. The idea is close to the stack approach, but instead of
-storing pointers to the ancestor nodes, we store the **context** of the current node.
+to a parent node or to a specific child node in a much more efficient way, without needing to always go back to the root
+node to access a node.
 
 ```haskell
 data Zipper = Zipper
@@ -185,8 +180,7 @@ A `Zipper` consists of:
 - the **currently focused tree node**
 - a list of **breadcrumbs** that stores the path from the root to the current node.
 
-A `Crumb` looks like a `Tree`, except for one `Tree` is taken away, which is the next node we have gone down to from the
-`Crumb`. The `holeKey` stores the key of the removed node, `before` contains the preceding siblings, and `after`
+A `Crumb` looks like a `Tree`, except that one `Tree` has been removed; it is the node we most recently descended into. The `holeKey` stores the key of the removed node, `before` contains the preceding siblings, and `after`
 contains the following siblings.
 
 ```haskell
@@ -212,13 +206,13 @@ subgraph zipper
 end
 ```
 
-In the diagram, the focus node is a copy of the original root node, and the breadcrumb stack is empty because we are at the root node.
+In the diagram, the focus node has the same value as the original root node, and the breadcrumb stack is empty because we are at the root node.
 
 #### Move down
 
 ```haskell
 goDown :: String -> Zipper -> Zipper
-goDown k (Zipper (Tree ts) bs)
+goDown k (Zipper (Object ts) bs)
   | (l, (_, v) : r) <- break ((== k) . fst) ts = Zipper v (Crumb l k r : bs)
 goDown k (Zipper f _) = error $ "Cannot go to child '" ++ k ++ "' of tree: " ++ show f
 ```
@@ -332,7 +326,7 @@ tree.
 
 #### Focus modification
 
-Now we modify the value of "x" to 1. We just call the `modify` function on the focus node:
+Now we modify the value of "x" to 42. We just call the `modify` function on the focus node:
 
 ```haskell
 modifyZipper :: (Tree -> Tree) -> Zipper -> Zipper
@@ -348,13 +342,13 @@ We modify the "x" node to 42. Now in the zipper, the focus node is a new node wi
 
 ```haskell 
 goUp :: Zipper -> Zipper
-goUp (Zipper t (Crumb l key r : bs)) = Zipper (Tree (l ++ (key, t) : r)) bs
+goUp (Zipper t (Crumb l key r : bs)) = Zipper (Object (l ++ (key, t) : r)) bs
 goUp (Zipper _ []) = error "Already at the top"
 ```
 
 Moving upward is a reverse process of moving downward. It **reassembles the tree** by filling the hole in the Crumb with
 the current focus node, popping the Crumb from the list of breadcrumbs, and making the reassembled tree the new focus
-node. It is an `O(1)` operation.
+node.
 
 Now we go up, the Zipper would look like the following:
 
@@ -388,14 +382,16 @@ subgraph zipper
 end
 ```
 
-In the above diagram, the new focus node is created by filling the hole in the crumb with the modified "x" node which
+In the above diagram, the new focus node is created by filling the hole in the crumb with the modified "x" node that
 has value 42. The new focus node shares the unchanged child node "y" with the original "b" node.
 
 #### access with Zipper
 
 Unlike `access` which returns a new root node, `accessZ` goes to the target node, applies the function to the focus
-node, and then goes back to the same position in the tree. The time complexity of `accessZ` is `O(depth(node))` too, but
-the depth is relative to the focus node, not the root node.
+node, and then goes back to the same position in the tree. The number of nodes that are modified by `accessZ` is
+`O(distance(node, cursor))`, where `distance(node, cursor)` is the depth of the target node from the current cursor
+node. If the target node is close to the cursor node, the number of modified nodes is a much smaller number than
+`O(depth(node))`, which is the number of modified nodes by `access`.
 
 ```haskell
 accessZ :: [String] -> (Zipper -> Zipper) -> Zipper -> Zipper
@@ -411,6 +407,7 @@ current Zipper. If the path is not empty, we go down to the child node with key 
 child node with the remaining path `ks`, and then go back up to the original position.
 
 The `(&)` operator is a reverse function application operator, which allows us to write the operand before the function.
+It is already defined in `Data.Function` in Haskell, but we define it here for completeness.
 
 #### with_cursor implementation
 
@@ -434,7 +431,7 @@ accessWCursor path f = accessZ path (modifyZipper f)
 
 #### Query execution
 
-The second query `with_cursor(.a.b, .x = 42 | .y = 43)` will be translated to the following code:
+The second query `with_cursor($=.a.b, $.x = 42 | $.y = 43)` will be translated to the following code:
 
 ```haskell
 withCursor
@@ -443,35 +440,68 @@ withCursor
   root
 ```
 
-It uses `withCursor` to navigate to the "b" node, then setting the "b" node as the cursor, it modifies the "x" node and
-the "y" node with `accessWCursor`.
+It uses `withCursor` to navigate to the "b" node, then with "b" as the cursor, modifies the "x" node and the "y" node
+with `accessWCursor`.
 
-If there are `N` modifications that are close to the cursor node, the time complexity of the whole query is `O(depth(node) + N)`.
+If there are `N` modifications that are just one step away from the cursor node, the total number of nodes that are
+modified is `O(N + depth(cursor))`, which is much more efficient than `O(N * depth(tree))`.
+
+### Comparing the two approaches
+
+Let's compare the two approaches in terms of the number of node allocations and time complexity. 
+
+| Approach            | Total node allocations | Time complexity        |
+| ------------------- | ---------------------- | ---------------------- |
+| Root-based `access` | `O(N * depth(tree))`   | `O(N * depth(tree))`   |
+| Zippers             | `O(N + depth(cursor))` | `O(N + depth(cursor))` |
 
 ## When to use Zippers
 
-Under workloads that require a lot of value lookups during navigation, Zippers alone might not be optimal. Even though
-the time complexity of every navigation operation is `O(1)`, each operation allocates memory. If we need to constantly
-navigate to a node and then fetch the value of the node, the memory allocation can be a bottleneck.
+Zippers are not universally better than root-based access. Their advantage depends on the access pattern.
 
-We can have some optimizations:
+### High spatial locality
 
-- build a cache that maps from the path to the node to the node value, and use the Zipper only for updates. This way we
-  can minimize memory allocation.
-- create a function to look up value directly in the Zipper without modifying the Zipper. Zipper has all the information
-  needed to look up the value of any node in the tree. The time complexity of this lookup function is `O(depth(node))`,
-  but it does not allocate memory, so it can be more efficient than navigating to the node and then fetching the value.
+When a query performs many modifications in the same region of the tree, zippers avoid redundant rebuilds of the path
+from the root. Performance tests in [Performance Analysis of
+Zippers](https://arxiv.org/abs/1908.10926) show up to 280% speedup over the root-based approach when modifications are
+clustered together. The key factor is **spatial locality**: the closer the edits are to each other (and to the cursor),
+the greater the benefit.
 
-### Complexity of `Crumb` implementation
+When modifications are scattered across unrelated parts of the tree, the zipper must navigate up and back down for each
+one, and the overhead of creating crumbs on every step can make it **slower** than simply calling `access` from the root
+each time.
 
-If the tree has different types of nodes, for example an AST tree, the `Crumb` implementation can be more complicated.
-For each different type of node, we need to define how to create a hole in the node and how to reassemble the node when
-going up. This can lead to a lot of boilerplate code and make the implementation more error-prone.
+### Read-only access (avoid zippers)
 
-For example, if we have the following Value tree:
+Every `goDown` or `goUp` allocates a new crumb and a new focus node, even if we never modify anything. For read-only
+lookups, this overhead is wasted. A cheaper alternative is to maintain a flat map from paths to values alongside the
+tree. Modifications update both the tree (via a zipper) and the map; reads consult the map directly in `O(log n)` time
+without any navigation.
+
+For example, the read query `$.^.c` in:
+
+```
+with_cursor($=.a.b, $temp = $.^.c + 1 | $.x = $temp)
+```
+
+can be resolved by computing the absolute path `["a", "c"]` and looking it up in the flat map, avoiding zipper
+navigation entirely.
+
+### Rule of thumb
+
+| Scenario                            | Preferred approach            |
+| ----------------------------------- | ----------------------------- |
+| Many edits clustered in one subtree | Zipper                        |
+| Edits scattered across the tree     | Root-based `access`           |
+| Read-only lookups                   | Flat map / direct path lookup |
+
+## Complexity of Zipper implementation
+
+Zipper implementation can have a lot of boilerplate code, especially when the tree structure is complex. For example, if
+we have the following Value tree:
 
 ```haskell
-data Value = Atom String
+data Value = Atom Int
          | List [Value]
          | Map [(String, Value)]
          | BinOp String Value Value
@@ -488,13 +518,18 @@ data ValueCrumb = ListCrumb Int [Value] [Value]
                 | UnOpCrumb String
 ```
 
+We will talk about how to reduce the boilerplate code in the next post.
+
 ## Conclusion
 
-Zippers are a powerful technique for navigating and modifying persistent data structures like trees. They allow us to go
-to parent node or to a specific child node in `O(1)` time. However, zipper implementation can become complex, especially
-for trees with heterogeneous node types. Additionally, under workloads requiring frequent value lookups during
-navigation, zippers alone may not be optimal due to memory allocation overhead.
+From an imperative-programming point of view, zippers can feel natural as they let us navigate and modify a tree node
+"in place", as opposed to the root-based approach where we always have to create a new tree for each modification.
+Zippers work best when edits are clustered - with a cursor near the action, each modification costs only the distance
+from the cursor instead of the full depth of the tree.
+
+However, they are not a universal replacement for root-based access. Scattered edits gain little from a zipper, and
+read-only lookups are better served by a flat index. The right choice depends on the access pattern.
 
 ## Further reading
 
-- [Learn You a Haskell for Great Good!](https://learnyouahaskell.github.io/zippers.html)  
+- [Learn You a Haskell for Great Good!](https://learnyouahaskell.github.io/zippers.html)
