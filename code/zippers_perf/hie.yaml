@@ -1,0 +1,8 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "zippers-perf:exe:zippers-time"
+    - path: "./exe/WeighMain.hs"
+      component: "zippers-perf:exe:zippers-weigh"
+    - path: "./exe/CriterionMain.hs"
+      component: "zippers-perf:exe:zippers-time"

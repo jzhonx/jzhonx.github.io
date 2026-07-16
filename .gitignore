@@ -2,5 +2,6 @@
 .sass-cache
 .jekyll-cache
 .jekyll-metadata
+dist-newstyle
 vendor
 Gemfile.lock
