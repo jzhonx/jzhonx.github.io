@@ -35,6 +35,7 @@ plugins:
 
 exclude:
   - AGENTS.md
+  - assets/posts/**/dev.to.markdown
 
 # Exclude from processing.
 # The following items will not be processed, by default.
