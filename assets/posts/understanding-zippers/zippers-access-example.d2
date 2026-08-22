@@ -1,0 +1,72 @@
+direction: down
+
+original_tree: {
+  label: "original tree"
+  direction: down
+  style.font-size: 24
+
+  root: "root" {
+    style.font-size: 24
+  }
+  tree_a: "tree_a" {
+    style.font-size: 24
+  }
+  tree_b: "tree_b" {
+    style.font-size: 24
+  }
+  x: "1" {
+    style.font-size: 24
+  }
+  y: "2" {
+    style.font-size: 24
+    style.fill: "#FFF3BF"
+    style.stroke: "#E0A800"
+    style.stroke-width: 3
+  }
+
+  root -> tree_a: "a" {
+    style.font-size: 20
+  }
+  tree_a -> tree_b: "b" {
+    style.font-size: 20
+  }
+  tree_b -> x: "x" {
+    style.font-size: 20
+  }
+  tree_b -> y: "y" {
+    style.font-size: 20
+  }
+}
+
+new_tree: {
+  label: "new tree"
+  direction: down
+  style.font-size: 24
+
+  root: "root'" {
+    style.font-size: 24
+  }
+  tree_a: "tree_a'" {
+    style.font-size: 24
+  }
+  tree_b: "tree_b'" {
+    style.font-size: 24
+  }
+  x: "42" {
+    style.font-size: 24
+  }
+
+  root -> tree_a: "a" {
+    style.font-size: 20
+  }
+  tree_a -> tree_b: "b" {
+    style.font-size: 20
+  }
+  tree_b -> x: "x" {
+    style.font-size: 20
+  }
+}
+
+new_tree.tree_b -> original_tree.y: "y" {
+  style.font-size: 20
+}

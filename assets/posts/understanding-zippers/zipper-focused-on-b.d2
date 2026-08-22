@@ -1,0 +1,89 @@
+direction: down
+
+original_tree: {
+  label: "original tree"
+  direction: down
+  style.font-size: 24
+
+  root: "root" {
+    style.font-size: 24
+  }
+  tree_a: "tree_a" {
+    style.font-size: 24
+  }
+  tree_b: "tree_b" {
+    style.font-size: 24
+  }
+  x: "1" {
+    style.font-size: 24
+    style.fill: "#FFF3BF"
+    style.stroke: "#E0A800"
+    style.stroke-width: 3
+  }
+  y: "2" {
+    style.font-size: 24
+    style.fill: "#FFF3BF"
+    style.stroke: "#E0A800"
+    style.stroke-width: 3
+  }
+
+  root -> tree_a: "a" {
+    style.font-size: 20
+  }
+  tree_a -> tree_b: "b" {
+    style.font-size: 20
+  }
+  tree_b -> x: "x" {
+    style.font-size: 20
+  }
+  tree_b -> y: "y" {
+    style.font-size: 20
+  }
+}
+
+zipper: {
+  label: "zipper"
+  direction: down
+  style.font-size: 24
+
+  crumb_0: {
+    label: "crumb_0"
+    style.font-size: 24
+
+    hole_key: "holeKey: a" {
+      style.font-size: 24
+    }
+  }
+
+  crumb_1: {
+    label: "crumb_1"
+    style.font-size: 24
+
+    hole_key: "holeKey: b" {
+      style.font-size: 24
+    }
+  }
+
+  focus: {
+    label: "focus"
+    style.font-size: 24
+
+    tree_b: "tree_b" {
+      style.font-size: 24
+    }
+  }
+
+  crumb_0 -> crumb_1: "next" {
+    style.font-size: 20
+  }
+  crumb_1 -> focus: "next" {
+    style.font-size: 20
+  }
+}
+
+zipper.focus.tree_b -> original_tree.x: "x" {
+  style.font-size: 20
+}
+zipper.focus.tree_b -> original_tree.y: "y" {
+  style.font-size: 20
+}

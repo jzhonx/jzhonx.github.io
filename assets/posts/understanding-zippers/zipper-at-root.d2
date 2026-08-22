@@ -1,0 +1,45 @@
+direction: down
+
+original_tree: {
+  label: "original tree"
+  direction: down
+  style.font-size: 24
+
+  root: "root" {
+    style.font-size: 24
+  }
+  tree_a: "tree_a" {
+    style.font-size: 24
+    style.fill: "#FFF3BF"
+    style.stroke: "#E0A800"
+    style.stroke-width: 3
+  }
+  tree_b: "tree_b" {
+    style.font-size: 24
+  }
+
+  root -> tree_a: "a" {
+    style.font-size: 20
+  }
+  tree_a -> tree_b: "b" {
+    style.font-size: 20
+  }
+}
+
+zipper: {
+  label: "zipper"
+  style.font-size: 24
+
+  focus: {
+    label: "focus"
+    style.font-size: 24
+
+    root: "root" {
+      style.font-size: 24
+    }
+  }
+}
+
+zipper.focus.root -> original_tree.tree_a: "a" {
+  style.font-size: 20
+}
