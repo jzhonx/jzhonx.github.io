@@ -57,7 +57,7 @@ common benchmark-common
     import:           warnings
     hs-source-dirs:   exe, src
     other-modules:    Traversal
-    build-depends:    base ^>=4.18.3.0
+    build-depends:    base
                     , containers
                     , deepseq
                     , random

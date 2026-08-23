@@ -155,7 +155,9 @@ genLocalWalkPaths depth width maxSteps n = do
 stepLocalWalk :: IOGenM StdGen -> Int -> Int -> Int -> [String] -> IO [String]
 stepLocalWalk gen maxDepth width maxSteps prevPath
   | null prevPath = genRandomPath gen maxDepth width
-  | length prevPath == maxDepth = return $ take (maxDepth - 1) prevPath
+  | length prevPath == maxDepth = do
+      upSteps <- uniformRM (1, min maxSteps maxDepth) gen
+      return $ take (maxDepth - upSteps) prevPath
   | otherwise = do
       let depth = length prevPath
       direction <- uniformRM (0 :: Int, 1) gen

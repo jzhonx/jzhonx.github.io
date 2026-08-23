@@ -3,10 +3,9 @@ layout: post
 title:  "Benchmarking Zippers in Haskell"
 date:   2026-07-16
 categories: Haskell
-mermaid: true
 ---
 
-In the previous post, we explored zippers and their applications in functional programming. In this post, we benchmark their performance against a root-based approach.
+In the [previous post]({% post_url 2026-03-17-zippers %}), we explored zippers and their applications in functional programming. In this post, we benchmark their performance against a root-based approach.
 
 ## Two Approaches
 
@@ -70,27 +69,25 @@ Here, depth counts edges from the root. All three trees have exactly 1,048,576 l
 
 The workloads are:
 
-1. **Random lookup.** Choose the path depth uniformly from 1 through the maximum depth, then choose every key uniformly.
-   Read the node's integer into a checksum.
-2. **Random edit.** Generate paths in the same way, then increment the node's integer. Both `Atom` and `Object` are updated.
-3. **Local edit.** Start at a random path, then move one or two levels either up or down before each edit. A leaf moves
-   up; after visiting the root, the next path restarts at a random location. For example, the path sequence `a/b/c ->
-   a/b -> a/b/d/e`.
-
-The local targets are actually deeper on average than the random targets. Their advantage comes from shorter travel,
-not from choosing shallower nodes.
+1. **Random lookup.** Choose a path by selecting its depth uniformly from 1 through the maximum depth, then selecting
+   each key uniformly. Add the node’s integer to a checksum.
+2. **Random edit.** Generate paths in the same way, then increment the node's integer. Both `Atom` and `Object` are
+   updated.
+3. **Local edit.** Start by editing a node at a random path. Before each following edit, move one or two levels up or
+   down. At a leaf, the next move must be up; after editing the root, restart at another random path. For example: `a/b`
+   (random start) -> `a/b/c/d` (down two) -> `a/b` (up two from a leaf) -> `root` (up two) -> `x/y/z` (random restart).
 
 ### Measurement Details
 
 These results are based on running the benchmarks on a MacBook Air M4 with 24 GB of RAM, using the following environment:
 
 - arm64, macOS 26.3.1
-- GHC 9.6.7, Cabal 3.12.1.0
+- GHC 9.10.3, Cabal 3.12.1.0
 - Criterion 1.6.5.0
-- containers 0.6.7, random 1.3.1
+- containers 0.7, random 1.3.1
 - fixed seed 20260716
 
-The test program is compiled with `ghc -O2`. 
+The test program is compiled with `ghc -O2`.
 
 Trees, paths, and relative zipper moves are generated and fully evaluated outside the timed region. Update benchmarks
 use `whnf`: the strict tree fields and `Data.Map.Strict` force each update, without adding an
@@ -105,33 +102,45 @@ cabal run zippers-time
 
 ## Timing Results
 
-Each time is Criterion’s mean for the entire 100,000-operation batch. Values are shown as root time / zipper time — faster implementation and speedup. The speedup is the slower time divided by the faster time; for example, root 4.30× means the zipper took 4.30 times as long as the root implementation.
+Each time is Criterion’s mean for the entire 100,000-operation batch. Values are shown as root-based time / zipper time
+— faster implementation and speedup. The speedup is the slower time divided by the faster time; for example, root 3.86×
+means the zipper took 3.86 times as long as the root-based implementation.
 
 | Tree   | Random lookup                  | Random edit                    | Local edit                      |
 | ------ | ------------------------------ | ------------------------------ | ------------------------------- |
-| 5 × 16 | 22.45 / 96.45 ms — root 4.30×  | 63.13 / 98.12 ms — root 1.55×  | 33.73 / 30.22 ms — zipper 1.12× |
-| 10 × 4 | 20.37 / 84.52 ms — root 4.15×  | 56.73 / 88.22 ms — root 1.56×  | 29.99 / 17.04 ms — zipper 1.76× |
-| 20 × 2 | 38.87 / 121.25 ms — root 3.12× | 94.62 / 122.20 ms — root 1.29× | 30.88 / 9.23 ms — zipper 3.34×  |
+| 5 × 16 | 21.97 / 84.89 ms — root 3.86×  | 53.41 / 90.09 ms — root 1.69×  | 32.17 / 31.52 ms — roughly tied |
+| 10 × 4 | 20.96 / 84.93 ms — root 4.05×  | 56.86 / 87.92 ms — root 1.55×  | 26.18 / 16.61 ms — zipper 1.58× |
+| 20 × 2 | 33.76 / 114.34 ms — root 3.39× | 88.20 / 118.11 ms — root 1.34× | 30.45 / 9.14 ms — zipper 3.33×  |
 
 ## Analysis of the Results
 
-A root lookup performs one `Map.lookup` at each level and allocates very little. This Map-based zipper, on the other hand,
-must allocate memory for each move. This makes the zipper slower for random lookups.
+A root-based lookup performs one `Map.lookup` at each level and allocates very little. The zipper has to update the map
+and allocate memory whenever it moves down, so it is slower for random lookups.
 
-Random edits narrow the gap because the root implementation must also rebuild every map on the path. The zipper is still
-slower because it travels farther than the root implementation: it usually needs to climb close to the root before
-moving to the next target. The path between two random targets is usually longer than the path from the root to either target.
+Random edits narrow the gap because the root-based implementation must also rebuild every map on the path. The zipper is
+still slower because it travels farther than the root-based implementation: it usually needs to climb close to the root
+before moving to the next target. The path between two random targets is usually longer than the path from the root to
+either target.
 
-For the local workload, the root implementation starts over for every edit even though consecutive paths share most of
-their prefix. On the deepest tree, the root still traverses a long path for each edit, while the zipper moves only about 1.5 edges between nearby targets. The root implementation is also much faster on local edits than on random edits. This likely reflects better CPU-cache locality because consecutive operations revisit the same branches.
+For the local workload, the root-based implementation starts over for every edit even though consecutive paths share
+most of their prefix. On the deepest tree, the root-based implementation still traverses a long path for each edit,
+while the zipper moves only about 1.5 edges between nearby targets. The root-based implementation is also much faster on
+local edits than on random edits. This likely reflects better CPU-cache locality because consecutive operations revisit
+the same branches.
 
 The increasing advantage is not caused by depth in isolation: these test shapes become narrower as they become deeper.
 Smaller maps make per-level operations cheaper for both implementations.
 
 ## Practical Takeaway
 
-- Use direct root traversal for isolated or scattered operations, especially reads; for such workloads, a zipper is not worth the overhead.
-- For a batch of nearby edits, keep the zipper open between edits and convert it back to a complete tree only after the batch.
+- Use the root-based approach for isolated or scattered operations, especially reads; for such workloads, a zipper is
+  usually not worth the overhead.
+- For a batch of nearby edits, keep the zipper open between edits and convert it back to a complete tree only after the
+  batch.
 
 The [complete benchmark source](https://github.com/jzhonx/jzhonx.github.io/tree/main/code/zippers_perf) is available in
 the repository.
+
+## Further Reading
+
+- Vít Šefl, [Performance Analysis of Zippers](https://arxiv.org/abs/1908.10926), 2019.
