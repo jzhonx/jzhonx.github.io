@@ -13,6 +13,8 @@ const runLabel = document.querySelector(".run-label");
 const outputFormat = document.querySelector("#output-format");
 const operationInputs = document.querySelectorAll('input[name="operation"]');
 const encoder = new TextEncoder();
+const wasmUrl = new URL("./haskue.wasm", import.meta.url);
+let moduleState = "loading";
 
 const operations = {
   cue: {
@@ -29,16 +31,72 @@ const operations = {
   },
 };
 
+function wasmError(name, message, cause, details = {}) {
+  const error = new Error(message);
+  error.name = name;
+  error.cause = cause;
+  Object.assign(error, details);
+  return error;
+}
+
+async function loadWasmModule() {
+  let response;
+
+  try {
+    response = await fetch(wasmUrl);
+  } catch (error) {
+    moduleState = "failed";
+    throw wasmError(
+      "WasmNetworkError",
+      "The WebAssembly download could not be started.",
+      error,
+    );
+  }
+
+  if (!response.ok) {
+    moduleState = "failed";
+    throw wasmError(
+      "WasmHttpError",
+      `The server returned HTTP ${response.status} ${response.statusText}.`,
+      null,
+      { status: response.status },
+    );
+  }
+
+  let bytes;
+  try {
+    bytes = await response.arrayBuffer();
+  } catch (error) {
+    moduleState = "failed";
+    throw wasmError(
+      "WasmNetworkError",
+      "The WebAssembly download was interrupted before it completed.",
+      error,
+    );
+  }
+
+  moduleState = "compiling";
+  if (runButton.disabled) {
+    output.textContent = "Compiling WebAssembly…";
+  }
+
+  try {
+    const module = await WebAssembly.compile(bytes);
+    moduleState = "ready";
+    return module;
+  } catch (error) {
+    moduleState = "failed";
+    throw wasmError(
+      "WasmCompileError",
+      "The WebAssembly file was downloaded but could not be compiled.",
+      error,
+    );
+  }
+}
+
 // Compile the wasm artifact once, then create a fresh instance for every
 // invocation because a WASI command can run only once.
-const modulePromise = fetch("./haskue.wasm")
-  .then((response) => {
-    if (!response.ok) {
-      throw new Error(`Could not load haskue.wasm (${response.status})`);
-    }
-    return response.arrayBuffer();
-  })
-  .then(WebAssembly.compile);
+const modulePromise = loadWasmModule();
 
 function captureOutput() {
   const decoder = new TextDecoder();
@@ -63,6 +121,54 @@ function updateOutputFormat() {
   outputFormat.textContent = selectedOperation().label;
 }
 
+function errorDetails(error) {
+  if (!error.cause) {
+    return error.message;
+  }
+
+  return `${error.cause.name}: ${error.cause.message}`;
+}
+
+function formatError(error) {
+  if (error.name === "WasmNetworkError") {
+    const browserStatus = navigator.onLine ? "online" : "offline";
+    return [
+      "Unable to load Haskue WebAssembly.",
+      "",
+      error.message,
+      "Check your network connection and reload the page. If the problem continues, try another network or temporarily disable any VPN or content blocker.",
+      "",
+      `Resource: ${wasmUrl.href}`,
+      `Browser network status: ${browserStatus}`,
+      `Details: ${errorDetails(error)}`,
+    ].join("\n");
+  }
+
+  if (error.name === "WasmHttpError") {
+    return [
+      "Unable to load Haskue WebAssembly.",
+      "",
+      error.message,
+      "The file may be temporarily unavailable. Reload the page and try again.",
+      "",
+      `Resource: ${wasmUrl.href}`,
+    ].join("\n");
+  }
+
+  if (error.name === "WasmCompileError") {
+    return [
+      "Unable to start Haskue WebAssembly.",
+      "",
+      error.message,
+      "Try updating your browser or opening the page in another browser.",
+      "",
+      `Details: ${errorDetails(error)}`,
+    ].join("\n");
+  }
+
+  return error.stack || String(error);
+}
+
 async function runHaskue() {
   if (runButton.disabled) {
     return;
@@ -75,11 +181,16 @@ async function runHaskue() {
     input.disabled = true;
   });
   runButton.setAttribute("aria-busy", "true");
-  runLabel.textContent = "Running";
+  runLabel.textContent = moduleState === "ready" ? "Running" : "Loading";
   output.dataset.state = "running";
-  output.textContent = "Running…";
+  output.textContent =
+    moduleState === "ready" ? "Running…" : "Loading WebAssembly…";
 
   try {
+    const module = await modulePromise;
+    runLabel.textContent = "Running";
+    output.textContent = "Running…";
+
     const stdout = captureOutput();
     const stderr = captureOutput();
     const fds = [
@@ -92,7 +203,7 @@ async function runHaskue() {
     ];
 
     const wasi = new WASI(operation.args, [], fds, { debug: false });
-    const instance = await WebAssembly.instantiate(await modulePromise, {
+    const instance = await WebAssembly.instantiate(module, {
       wasi_snapshot_preview1: wasi.wasiImport,
     });
     const exitCode = wasi.start(instance);
@@ -104,7 +215,7 @@ async function runHaskue() {
     output.dataset.state = exitCode === 0 ? "success" : "error";
   } catch (error) {
     output.dataset.state = "error";
-    output.textContent = error.stack || String(error);
+    output.textContent = formatError(error);
   } finally {
     runButton.disabled = false;
     operationInputs.forEach((input) => {
