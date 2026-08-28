@@ -5,6 +5,6 @@ title: false
 
 ## Projects
 
-### [Haskue](https://github.com/jzhonx/haskue)
+### [Haskue]({{ "/haskue/" | relative_url }})
 
 CUE implemented in Haskell.
