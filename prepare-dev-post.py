@@ -12,6 +12,9 @@ import tempfile
 
 
 ROOT_RELATIVE_IMAGE = re.compile(r"(!\[[^\]]*\]\()(/[^)\s]+)")
+RELATIVE_URL_IMAGE = re.compile(
+    r'''(!\[[^\]]*\]\()\{\{\s*(["'])(/[^"']+)\2\s*\|\s*relative_url\s*\}\}'''
+)
 
 
 def config_value(config: str, key: str, default: str | None = None) -> str:
@@ -42,8 +45,7 @@ def adjust_image_links(
 ) -> tuple[str, int]:
     extension = image_extension.lstrip(".") if image_extension else None
 
-    def replace(match: re.Match[str]) -> str:
-        path = match.group(2)
+    def adjusted_path(path: str) -> str:
         if extension:
             path = re.sub(
                 r"\.svg(?=$|[?#])",
@@ -51,12 +53,17 @@ def adjust_image_links(
                 path,
                 flags=re.IGNORECASE,
             )
-        return f"{match.group(1)}{root}{path}"
+        return path
 
-    return ROOT_RELATIVE_IMAGE.subn(
-        replace,
+    markdown, liquid_count = RELATIVE_URL_IMAGE.subn(
+        lambda match: f"{match.group(1)}{root}{adjusted_path(match.group(3))}",
         markdown,
     )
+    markdown, root_relative_count = ROOT_RELATIVE_IMAGE.subn(
+        lambda match: f"{match.group(1)}{root}{adjusted_path(match.group(2))}",
+        markdown,
+    )
+    return markdown, liquid_count + root_relative_count
 
 
 def write_atomically(output_file: Path, content: str) -> None:
@@ -75,7 +82,7 @@ def write_atomically(output_file: Path, content: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Replace root-relative Markdown image links with absolute site URLs."
+        description="Replace site-relative Markdown image links with absolute site URLs."
     )
     parser.add_argument("post_file", type=Path)
     parser.add_argument("output_file", type=Path)

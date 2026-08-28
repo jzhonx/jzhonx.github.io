@@ -5,7 +5,7 @@ date:   2026-07-16
 categories: Haskell
 ---
 
-In the [previous post]({% post_url 2026-03-17-zippers %}), we explored zippers and their applications in functional programming. In this post, we benchmark their performance against a root-based approach.
+In the [previous post]({{ site.baseurl }}{% post_url 2026-03-17-zippers %}), we explored zippers and their applications in functional programming. In this post, we benchmark their performance against a root-based approach.
 
 ## Two Approaches
 

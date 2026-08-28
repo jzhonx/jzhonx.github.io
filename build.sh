@@ -44,7 +44,7 @@ normalized_dir=${diagram_dir#./}
 normalized_dir=${normalized_dir%/}
 
 if [[ $normalized_dir == assets/posts/* ]]; then
-  image_reference="](/$normalized_dir/"
+  image_reference="/$normalized_dir/"
   matching_posts=()
 
   while IFS= read -r post_file; do

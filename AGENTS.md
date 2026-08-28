@@ -8,6 +8,7 @@ This repository contains the source for a Jekyll site published with GitHub Page
 
 - `_posts/`: dated blog posts in Markdown.
 - `_includes/` and `_layouts/`: reusable Liquid/HTML templates.
+- `blog/`: the blog landing page published at `/blog/`.
 - `assets/posts/`: post-specific assets, including D2 sources and their rendered SVGs and PNGs.
 - `build.sh`: renders every D2 source beneath a specified directory and prepares DEV.to Markdown for its post.
 - `code/`: supporting source-code examples used by posts.
@@ -28,7 +29,7 @@ This repository contains the source for a Jekyll site published with GitHub Page
 ## Diagrams with D2
 
 - Use [D2](https://d2lang.com/) for diagrams created for posts.
-- Give each post with diagrams a descriptive directory under `assets/posts/`. For example, diagrams for `_posts/2026-03-17-zippers.markdown` belong in `assets/posts/understanding-zippers/`.
+- Give each post with diagrams a descriptive directory under `assets/posts/`. For example, diagrams for `_posts/2026-03-17-zippers.md` belong in `assets/posts/understanding-zippers/`.
 - Treat the `.d2` file as the authoritative, editable source and commit it with the rendered diagrams.
 - Store each rendered SVG and PNG beside its source using the same base name, for example `tree.d2`, `tree.svg`, and `tree.png`.
 - Use descriptive diagram filenames such as `persistent-update.d2` rather than numbered names such as `d1.d2`.
@@ -41,9 +42,9 @@ This repository contains the source for a Jekyll site published with GitHub Page
 
 The script searches the directory recursively, renders centered SVGs at `0.75` scale and DEV.to-compatible PNGs at `0.4` scale with 10 pixels of padding, and writes each output beside its `.d2` source using the same base name. Keep global alignment, padding, and display sizing in `build.sh` instead of individual D2 sources or HTML `<img>` elements, so diagrams remain consistent and continue to work in Markdown Preview.
 
-When exactly one post references the asset directory, the script also writes `dev.to.markdown` there. This generated, ignored file is a copy of the post with root-relative Markdown image links replaced by absolute URLs based on `url` and `baseurl` in `_config.yml`; SVG image extensions are changed to PNG for DEV.to compatibility.
+When exactly one post references the asset directory, the script also writes `dev.to.markdown` there. This generated, ignored file is a copy of the post with base-path-aware Markdown image links replaced by absolute URLs based on `url` and `baseurl` in `_config.yml`; SVG image extensions are changed to PNG for DEV.to compatibility.
 
-- Reference the rendered SVG, not the `.d2` source, with a root-relative Markdown path, for example `![Description](/assets/posts/understanding-zippers/persistent-update.svg)`. Because this site's `baseurl` is empty, this form works both on the published site and in workspace-aware Markdown previews such as VS Code's.
+- Reference the rendered SVG, not the `.d2` source, with a base-path-aware Markdown path, for example `![Description]({{ "/assets/posts/understanding-zippers/persistent-update.svg" | relative_url }})`.
 - Do not edit generated SVG markup by hand; make changes in the `.d2` source and regenerate it.
 
 ## Useful commands

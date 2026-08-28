@@ -23,15 +23,19 @@ author: Junxiang Zhou
 email: junzhou365@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
   Go, Haskell, Declarative languages
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "https://jzhonx.github.io/" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: "" # this GitHub user site is served from the domain root
+url: "https://jzhonx.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 github_username:  jzhonx
+permalink: /blog/:categories/:year/:month/:day/:title:output_ext
 
 # Build settings
 theme: minima
 plugins:
   - jekyll-feed
   - jekyll-sitemap
+
+feed:
+  path: /blog/feed.xml
 
 exclude:
   - AGENTS.md
