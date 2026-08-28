@@ -3,45 +3,464 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Haskue WebAssembly example</title>
+    <meta
+      name="description"
+      content="Run Haskue, a CUE implementation in Haskell, directly in your browser."
+    />
+    <title>Haskue</title>
     <style>
+      :root {
+        color-scheme: light;
+        --background: #ffffff;
+        --surface: #ffffff;
+        --surface-raised: #f1f3f8;
+        --border: #dfe3ec;
+        --border-strong: #b9c1d0;
+        --text: #172033;
+        --text-muted: #667085;
+        --accent: #6559d9;
+        --accent-bright: #5b50d1;
+        --accent-soft: rgb(101 89 217 / 9%);
+        --error: #c93644;
+        --font-sans: Inter, ui-sans-serif, system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo,
+          monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 20rem;
+        background: var(--background);
+      }
+
       body {
-        max-width: 48rem;
-        margin: 2rem auto;
+        min-height: 100vh;
+        margin: 0;
+        color: var(--text);
+        background: var(--background);
+        font-family: var(--font-sans);
+      }
+
+      button,
+      textarea,
+      input {
+        font: inherit;
+      }
+
+      .app {
+        width: min(100%, 96rem);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: clamp(1rem, 3vw, 2.5rem);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.65rem, 3vw, 2.15rem);
+        font-weight: 720;
+        letter-spacing: -0.045em;
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .operation-switch {
+        display: flex;
+        min-width: 0;
+        margin: 0;
+        padding: 0.25rem;
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: #f7f8fb;
+        scrollbar-width: none;
+      }
+
+      .operation-switch::-webkit-scrollbar {
+        display: none;
+      }
+
+      .operation-switch legend {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .operation-switch input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .operation-switch label {
+        padding: 0.52rem 0.72rem;
+        border-radius: 0.52rem;
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        font-weight: 650;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          color 140ms ease,
+          background 140ms ease;
+      }
+
+      .operation-switch label:hover {
+        color: var(--text);
+      }
+
+      .operation-switch input:checked + label {
+        color: var(--text);
+        background: var(--surface-raised);
+        box-shadow: 0 1px 4px rgb(28 39 64 / 12%);
+      }
+
+      .operation-switch input:focus-visible + label {
+        outline: 2px solid var(--accent-bright);
+        outline-offset: 2px;
+      }
+
+      .operation-switch input:disabled + label {
+        cursor: wait;
+        opacity: 0.6;
+      }
+
+      .run-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        min-height: 2.7rem;
+        padding: 0 0.95rem;
+        border: 1px solid #5145c5;
+        border-radius: 0.75rem;
+        color: #ffffff;
+        background: var(--accent-bright);
+        box-shadow: 0 0.4rem 1.2rem rgb(91 80 209 / 20%);
+        font-size: 0.84rem;
+        font-weight: 750;
+        cursor: pointer;
+        transition:
+          transform 140ms ease,
+          filter 140ms ease;
+      }
+
+      .run-button:hover:not(:disabled) {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+      }
+
+      .run-button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .run-button:disabled {
+        cursor: wait;
+        filter: saturate(0.6);
+        opacity: 0.7;
+      }
+
+      .run-button svg {
+        width: 0.85rem;
+        height: 0.85rem;
+        fill: currentColor;
+      }
+
+      .shortcut {
+        padding-left: 0.65rem;
+        border-left: 1px solid rgb(255 255 255 / 38%);
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
+        font-weight: 600;
+        opacity: 0.65;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-width: 0;
+        height: clamp(32rem, calc(100vh - 8.5rem), 52rem);
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        background: var(--surface);
+        box-shadow: 0 1.25rem 3.5rem rgb(37 48 73 / 8%);
+      }
+
+      .panel:focus-within {
+        border-color: var(--border-strong);
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 3.1rem;
         padding: 0 1rem;
-        font: 16px/1.5 system-ui, sans-serif;
+        border-bottom: 1px solid var(--border);
+        background: #f8f9fb;
+      }
+
+      .panel-title {
+        color: var(--text);
+        font-size: 0.76rem;
+        font-weight: 720;
+        letter-spacing: 0.025em;
+        text-transform: uppercase;
+      }
+
+      .format-badge {
+        padding: 0.23rem 0.48rem;
+        border: 1px solid rgb(101 89 217 / 18%);
+        border-radius: 999px;
+        color: var(--accent-bright);
+        background: var(--accent-soft);
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
       }
 
       textarea,
       pre {
-        box-sizing: border-box;
         width: 100%;
-        padding: 0.75rem;
-        font: 14px/1.5 ui-monospace, monospace;
+        height: 100%;
+        margin: 0;
+        padding: 1.2rem;
+        overflow: auto;
+        border: 0;
+        color: #273044;
+        background: transparent;
+        font-family: var(--font-mono);
+        font-size: clamp(0.82rem, 1.2vw, 0.9rem);
+        line-height: 1.7;
+        tab-size: 2;
       }
 
       textarea {
-        min-height: 9rem;
+        min-height: 0;
+        resize: none;
+        caret-color: var(--accent-bright);
+        outline: 0;
+      }
+
+      textarea::selection,
+      pre::selection {
+        background: rgb(101 89 217 / 20%);
       }
 
       pre {
-        min-height: 6rem;
-        overflow: auto;
-        background: #f3f4f6;
+        color: #3e485c;
+        background: #fbfcfe;
+        white-space: pre;
+      }
+
+      pre[data-state="error"] {
+        color: var(--error);
+      }
+
+      .site-footer {
+        display: flex;
+        justify-content: center;
+        padding-top: 1.5rem;
+      }
+
+      .github-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem;
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        font-weight: 650;
+        text-decoration: none;
+        transition: color 140ms ease;
+      }
+
+      .github-link:hover {
+        color: var(--accent-bright);
+      }
+
+      .github-link:focus-visible {
+        border-radius: 0.35rem;
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .github-link svg {
+        width: 1.05rem;
+        height: 1.05rem;
+        fill: currentColor;
+      }
+
+      @media (max-width: 56rem) {
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .controls {
+          width: 100%;
+        }
+
+        .operation-switch {
+          flex: 1;
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .panel {
+          height: 28rem;
+        }
+      }
+
+      @media (max-width: 34rem) {
+        .app {
+          padding: 1rem;
+        }
+
+        .controls {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .operation-switch label {
+          flex: 1;
+          padding-inline: 0.55rem;
+          text-align: center;
+        }
+
+        .run-button {
+          width: 100%;
+        }
+
+        .panel {
+          height: 24rem;
+          border-radius: 0.8rem;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
       }
     </style>
   </head>
   <body>
-    <h1>Haskue in Chrome</h1>
+    <main class="app">
+      <header class="topbar">
+        <h1>Haskue</h1>
 
-    <label for="source">CUE input</label>
-    <textarea id="source">message: "hello from WebAssembly"
+        <div class="controls">
+          <fieldset class="operation-switch">
+            <legend>Choose an operation</legend>
+            <input
+              type="radio"
+              name="operation"
+              id="operation-cue"
+              value="cue"
+              checked
+            />
+            <label for="operation-cue">Evaluate CUE</label>
+
+            <input
+              type="radio"
+              name="operation"
+              id="operation-json"
+              value="json"
+            />
+            <label for="operation-json">Export JSON</label>
+
+            <input
+              type="radio"
+              name="operation"
+              id="operation-yaml"
+              value="yaml"
+            />
+            <label for="operation-yaml">Export YAML</label>
+          </fieldset>
+
+          <button id="run" class="run-button" type="button">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 2.7v10.6L13 8 4 2.7Z" />
+            </svg>
+            <span class="run-label">Run</span>
+            <span class="shortcut" aria-hidden="true">⌘↵</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="Haskue playground">
+        <div class="panel">
+          <div class="panel-header">
+            <label class="panel-title" for="source">CUE input</label>
+            <span class="format-badge">CUE</span>
+          </div>
+          <textarea id="source" spellcheck="false">message: "hello from WebAssembly"
 answer: 40 + 2</textarea>
+        </div>
 
-    <p><button id="run" type="button">Export as JSON</button></p>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Output</span>
+            <span id="output-format" class="format-badge">CUE</span>
+          </div>
+          <pre id="output" aria-live="polite">Loading haskue.wasm…</pre>
+        </div>
+      </section>
 
-    <label for="output">Output</label>
-    <pre id="output">Loading haskue.wasm…</pre>
+      <footer class="site-footer">
+        <a
+          class="github-link"
+          href="https://github.com/jzhonx/haskue"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.23c-3.22.7-3.9-1.36-3.9-1.36-.52-1.34-1.28-1.69-1.28-1.69-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.57-.29-5.28-1.29-5.28-5.72 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.47.11-3.07 0 0 .97-.31 3.16 1.19A10.98 10.98 0 0 1 12 6.06c.98 0 1.95.13 2.87.39 2.19-1.5 3.16-1.19 3.16-1.19.63 1.6.23 2.78.11 3.07.74.81 1.19 1.85 1.19 3.11 0 4.44-2.71 5.42-5.29 5.71.42.36.79 1.07.79 2.15v3.25c0 .31.21.68.8.56A11.5 11.5 0 0 0 12 .7Z"
+            />
+          </svg>
+          <span>View source on GitHub</span>
+        </a>
+      </footer>
+    </main>
 
     <script type="module" src="./main.js"></script>
   </body>
