@@ -2,34 +2,56 @@ import {
   ConsoleStdout,
   File,
   OpenFile,
-  PreopenDirectory,
   WASI,
 } from "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js";
 
 const source = document.querySelector("#source");
+const sourceLines = document.querySelector("#source-lines");
 const output = document.querySelector("#output");
+const outputLines = document.querySelector("#output-lines");
 const runButton = document.querySelector("#run");
 const runLabel = document.querySelector(".run-label");
 const outputFormat = document.querySelector("#output-format");
 const operationInputs = document.querySelectorAll('input[name="operation"]');
+const inputStack = document.querySelector("#input-stack");
+const explainQueryControl = document.querySelector("#explain-query-control");
+const explainQuery = document.querySelector("#explain-query");
 const encoder = new TextEncoder();
-const wasmUrl = new URL("./haskue.wasm", import.meta.url);
+const wasmUrl = new URL("./haskue.wasm?v=20260903-stdin-explain", import.meta.url);
 let moduleState = "loading";
 
 const operations = {
   cue: {
-    args: ["haskue", "eval", "input.cue"],
+    args: ["haskue", "eval", "-"],
     label: "CUE",
   },
   json: {
-    args: ["haskue", "export", "input.cue", "--out", "json"],
+    args: ["haskue", "export", "-", "--out", "json"],
     label: "JSON",
   },
   yaml: {
-    args: ["haskue", "export", "input.cue", "--out", "yaml"],
+    args: ["haskue", "export", "-", "--out", "yaml"],
     label: "YAML",
   },
+  explain: {
+    args: (query) => ["haskue", "eval", "-", "-e", query, "--explain"],
+    label: "Explanation",
+  },
 };
+
+function updateLineNumbers(element, gutter) {
+  const text =
+    typeof element.value === "string" ? element.value : element.textContent;
+  const lineCount = text.split("\n").length;
+  gutter.textContent = Array.from(
+    { length: lineCount },
+    (_, index) => index + 1,
+  ).join("\n");
+}
+
+function syncLineNumberScroll(element, gutter) {
+  gutter.scrollTop = element.scrollTop;
+}
 
 function wasmError(name, message, cause, details = {}) {
   const error = new Error(message);
@@ -118,7 +140,16 @@ function selectedOperation() {
 }
 
 function updateOutputFormat() {
-  outputFormat.textContent = selectedOperation().label;
+  const operation = selectedOperation();
+  const isExplain = operation === operations.explain;
+
+  outputFormat.textContent = operation.label;
+  inputStack.classList.toggle("is-explain", isExplain);
+  explainQueryControl.hidden = !isExplain;
+  explainQuery.required = isExplain;
+  if (!isExplain) {
+    explainQuery.removeAttribute("aria-invalid");
+  }
 }
 
 function errorDetails(error) {
@@ -175,6 +206,17 @@ async function runHaskue() {
   }
 
   const operation = selectedOperation();
+  const query = explainQuery.value.trim();
+
+  if (operation === operations.explain && !query) {
+    explainQuery.setAttribute("aria-invalid", "true");
+    output.dataset.state = "error";
+    output.textContent = "Enter a value path to explain, such as answer.";
+    explainQuery.focus();
+    return;
+  }
+
+  explainQuery.removeAttribute("aria-invalid");
 
   runButton.disabled = true;
   operationInputs.forEach((input) => {
@@ -194,15 +236,18 @@ async function runHaskue() {
     const stdout = captureOutput();
     const stderr = captureOutput();
     const fds = [
-      new OpenFile(new File([])),
+      new OpenFile(
+        new File(encoder.encode(source.value), { readonly: true }),
+      ),
       stdout.fd,
       stderr.fd,
-      new PreopenDirectory(".", [
-        ["input.cue", new File(encoder.encode(source.value), { readonly: true })],
-      ]),
     ];
 
-    const wasi = new WASI(operation.args, [], fds, { debug: false });
+    const args =
+      typeof operation.args === "function"
+        ? operation.args(query)
+        : operation.args;
+    const wasi = new WASI(args, [], fds, { debug: false });
     const instance = await WebAssembly.instantiate(module, {
       wasi_snapshot_preview1: wasi.wasiImport,
     });
@@ -230,11 +275,41 @@ runButton.addEventListener("click", runHaskue);
 operationInputs.forEach((input) => {
   input.addEventListener("change", updateOutputFormat);
 });
+explainQuery.addEventListener("input", () => {
+  if (explainQuery.value.trim()) {
+    explainQuery.removeAttribute("aria-invalid");
+  }
+});
+source.addEventListener("input", () => {
+  updateLineNumbers(source, sourceLines);
+});
+source.addEventListener("scroll", () => {
+  syncLineNumberScroll(source, sourceLines);
+});
+output.addEventListener("scroll", () => {
+  syncLineNumberScroll(output, outputLines);
+});
 source.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     event.preventDefault();
     runHaskue();
   }
 });
+explainQuery.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    runHaskue();
+  }
+});
+const outputObserver = new MutationObserver(() => {
+  updateLineNumbers(output, outputLines);
+});
+outputObserver.observe(output, {
+  childList: true,
+  characterData: true,
+  subtree: true,
+});
+updateLineNumbers(source, sourceLines);
+updateLineNumbers(output, outputLines);
 updateOutputFormat();
 runHaskue();

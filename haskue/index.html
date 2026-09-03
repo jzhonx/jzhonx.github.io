@@ -52,17 +52,17 @@
       }
 
       .app {
-        width: min(100%, 96rem);
+        width: min(100%, 112rem);
         min-height: 100vh;
         margin: 0 auto;
-        padding: clamp(1rem, 3vw, 2.5rem);
+        padding: clamp(1rem, 2.5vw, 1.75rem);
       }
 
       .topbar {
-        display: flex;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
         align-items: center;
-        justify-content: space-between;
-        gap: 1.5rem;
+        gap: 0.75rem 1.5rem;
         margin-bottom: 1.5rem;
       }
 
@@ -71,12 +71,47 @@
         font-size: clamp(1.65rem, 3vw, 2.15rem);
         font-weight: 720;
         letter-spacing: -0.045em;
+        line-height: 1.2;
+      }
+
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 0.85rem;
+        flex-wrap: wrap;
+      }
+
+      .brand-description {
+        margin: 0;
+        padding-left: 0.85rem;
+        border-left: 1px solid var(--border-strong);
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      .brand-description a {
+        color: var(--accent-bright);
+        text-decoration: none;
+      }
+
+      .brand-description a:hover {
+        color: var(--text);
+      }
+
+      .brand-description a:focus-visible {
+        border-radius: 0.2rem;
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
       }
 
       .controls {
         display: flex;
+        grid-column: 1 / -1;
         align-items: center;
         gap: 0.75rem;
+        width: 100%;
       }
 
       .operation-switch {
@@ -203,13 +238,27 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
+        height: clamp(38rem, calc(100vh - 10rem), 64rem);
+      }
+
+      .input-stack {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr);
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .input-stack.is-explain {
+        grid-template-rows: 8rem minmax(0, 1fr);
+        gap: 1rem;
       }
 
       .panel {
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
         min-width: 0;
-        height: clamp(32rem, calc(100vh - 8.5rem), 52rem);
+        min-height: 0;
+        height: 100%;
         overflow: hidden;
         border: 1px solid var(--border);
         border-radius: 1rem;
@@ -219,6 +268,10 @@
 
       .panel:focus-within {
         border-color: var(--border-strong);
+      }
+
+      .explain-panel[hidden] {
+        display: none;
       }
 
       .panel-header {
@@ -251,8 +304,33 @@
         letter-spacing: 0.04em;
       }
 
+      .code-area {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .line-numbers {
+        min-width: 3.2rem;
+        height: 100%;
+        padding: 1.2rem 0.7rem;
+        overflow: hidden;
+        border-right: 1px solid var(--border);
+        color: #98a1b2;
+        background: #f8f9fb;
+        font-family: var(--font-mono);
+        font-size: clamp(0.82rem, 1.2vw, 0.9rem);
+        line-height: 1.7;
+        text-align: right;
+        white-space: pre;
+        user-select: none;
+      }
+
       textarea,
-      pre {
+      pre,
+      .query-input {
         width: 100%;
         height: 100%;
         margin: 0;
@@ -274,12 +352,23 @@
         outline: 0;
       }
 
+      .query-input {
+        min-width: 0;
+        outline: 0;
+      }
+
+      .query-input[aria-invalid="true"] {
+        box-shadow: inset 0 0 0 1px var(--error);
+      }
+
       textarea::selection,
-      pre::selection {
+      pre::selection,
+      .query-input::selection {
         background: rgb(101 89 217 / 20%);
       }
 
       pre {
+        min-width: 0;
         color: #3e485c;
         background: #fbfcfe;
         white-space: pre;
@@ -289,10 +378,12 @@
         color: var(--error);
       }
 
-      .site-footer {
-        display: flex;
-        justify-content: center;
-        padding-top: 1.5rem;
+      .github-link.header-source {
+        justify-self: end;
+        padding: 0.55rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.65rem;
+        background: #f7f8fb;
       }
 
       .github-link {
@@ -324,13 +415,9 @@
       }
 
       @media (max-width: 56rem) {
-        .topbar {
-          align-items: flex-start;
-          flex-direction: column;
-        }
-
         .controls {
-          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
         }
 
         .operation-switch {
@@ -339,9 +426,11 @@
 
         .workspace {
           grid-template-columns: 1fr;
+          height: auto;
         }
 
-        .panel {
+        .input-stack,
+        .workspace > .panel {
           height: 28rem;
         }
       }
@@ -351,9 +440,29 @@
           padding: 1rem;
         }
 
-        .controls {
-          align-items: stretch;
+        .topbar {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .brand {
+          align-items: flex-start;
           flex-direction: column;
+          gap: 0.3rem;
+        }
+
+        .brand-description {
+          padding-left: 0;
+          border-left: 0;
+        }
+
+        .github-link.header-source {
+          justify-self: start;
+        }
+
+        .controls {
+          grid-column: 1;
+          align-items: stretch;
+          grid-template-columns: minmax(0, 1fr);
         }
 
         .operation-switch label {
@@ -363,11 +472,16 @@
         }
 
         .run-button {
+          grid-column: 1;
           width: 100%;
         }
 
-        .panel {
+        .input-stack,
+        .workspace > .panel {
           height: 24rem;
+        }
+
+        .panel {
           border-radius: 0.8rem;
         }
       }
@@ -385,7 +499,27 @@
   <body>
     <main class="app">
       <header class="topbar">
-        <h1>Haskue</h1>
+        <div class="brand">
+          <h1>Haskue</h1>
+          <p class="brand-description">
+            <a href="https://cuelang.org/docs/reference/spec/">CUE</a>
+            implemented in Haskell
+          </p>
+        </div>
+
+        <a
+          class="github-link header-source"
+          href="https://github.com/jzhonx/haskue"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.23c-3.22.7-3.9-1.36-3.9-1.36-.52-1.34-1.28-1.69-1.28-1.69-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.57-.29-5.28-1.29-5.28-5.72 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.47.11-3.07 0 0 .97-.31 3.16 1.19A10.98 10.98 0 0 1 12 6.06c.98 0 1.95.13 2.87.39 2.19-1.5 3.16-1.19 3.16-1.19.63 1.6.23 2.78.11 3.07.74.81 1.19 1.85 1.19 3.11 0 4.44-2.71 5.42-5.29 5.71.42.36.79 1.07.79 2.15v3.25c0 .31.21.68.8.56A11.5 11.5 0 0 0 12 .7Z"
+            />
+          </svg>
+          <span>View on GitHub</span>
+        </a>
 
         <div class="controls">
           <fieldset class="operation-switch">
@@ -414,6 +548,14 @@
               value="yaml"
             />
             <label for="operation-yaml">Export YAML</label>
+
+            <input
+              type="radio"
+              name="operation"
+              id="operation-explain"
+              value="explain"
+            />
+            <label for="operation-explain">Explain</label>
           </fieldset>
 
           <button id="run" class="run-button" type="button">
@@ -427,13 +569,34 @@
       </header>
 
       <section class="workspace" aria-label="Haskue playground">
-        <div class="panel">
-          <div class="panel-header">
-            <label class="panel-title" for="source">CUE input</label>
-            <span class="format-badge">CUE</span>
+        <div id="input-stack" class="input-stack">
+          <div id="explain-query-control" class="panel explain-panel" hidden>
+            <div class="panel-header">
+              <label class="panel-title" for="explain-query">Value path</label>
+              <span class="format-badge">Path</span>
+            </div>
+            <input
+              id="explain-query"
+              class="query-input"
+              type="text"
+              value="answer"
+              placeholder="e.g. answer"
+              autocomplete="off"
+              spellcheck="false"
+            />
           </div>
-          <textarea id="source" spellcheck="false">message: "hello from WebAssembly"
+
+          <div class="panel">
+            <div class="panel-header">
+              <label class="panel-title" for="source">CUE input</label>
+              <span class="format-badge">CUE</span>
+            </div>
+            <div class="code-area">
+              <div id="source-lines" class="line-numbers" aria-hidden="true"></div>
+              <textarea id="source" wrap="off" spellcheck="false">message: "hello from WebAssembly"
 answer: 40 + 2</textarea>
+            </div>
+          </div>
         </div>
 
         <div class="panel">
@@ -441,27 +604,15 @@ answer: 40 + 2</textarea>
             <span class="panel-title">Output</span>
             <span id="output-format" class="format-badge">CUE</span>
           </div>
-          <pre id="output" aria-live="polite">Loading WebAssembly…</pre>
+          <div class="code-area">
+            <div id="output-lines" class="line-numbers" aria-hidden="true"></div>
+            <pre id="output" aria-live="polite">Loading WebAssembly…</pre>
+          </div>
         </div>
       </section>
 
-      <footer class="site-footer">
-        <a
-          class="github-link"
-          href="https://github.com/jzhonx/haskue"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.23c-3.22.7-3.9-1.36-3.9-1.36-.52-1.34-1.28-1.69-1.28-1.69-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.57-.29-5.28-1.29-5.28-5.72 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.47.11-3.07 0 0 .97-.31 3.16 1.19A10.98 10.98 0 0 1 12 6.06c.98 0 1.95.13 2.87.39 2.19-1.5 3.16-1.19 3.16-1.19.63 1.6.23 2.78.11 3.07.74.81 1.19 1.85 1.19 3.11 0 4.44-2.71 5.42-5.29 5.71.42.36.79 1.07.79 2.15v3.25c0 .31.21.68.8.56A11.5 11.5 0 0 0 12 .7Z"
-            />
-          </svg>
-          <span>View source on GitHub</span>
-        </a>
-      </footer>
     </main>
 
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="./main.js?v=20260903-stdin-explain"></script>
   </body>
 </html>

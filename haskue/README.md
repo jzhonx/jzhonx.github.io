@@ -2,7 +2,7 @@
 
 This page runs `haskue.wasm` as a WASI command. The page uses
 [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim) to
-provide command-line arguments, an in-memory input file, and stdout/stderr.
+provide command-line arguments, CUE source through stdin, and stdout/stderr.
 
 From the repository root, start a local HTTP server:
 
